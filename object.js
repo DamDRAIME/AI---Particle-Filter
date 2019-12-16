@@ -3,7 +3,6 @@ class MovingObject {
     this.pos = (x == undefined || y == undefined) ? createVector(random(width), random(height)) : createVector(x, y);
     this.angle = (angle == undefined) ? random(TWO_PI) : angle;
     this.dir = p5.Vector.fromAngle(this.angle);
-
     
     this.nbrSensors = nbrSensors;
     this.sightRange = sightRange; //  A positive value defining the maximum distance up to which the sensor can detect a wall/obstacle.
@@ -18,33 +17,21 @@ class MovingObject {
   }
   
   move(angle, distance) {
-    let rotation = this.updateAngle(angle);
-    let magnitude = this.updatePosition(distance);
+    this.updateAngle(angle);
+    this.updatePosition(distance);
   }
 
   updatePosition(distance) {
     let magnitude = (distance == undefined) ? random(0, 25) : distance;
     this.dir.setMag(magnitude);
-    this.pos.x = this.pos.x + this.dir.x;
-    this.pos.y = this.pos.y + this.dir.y;
-    return magnitude
+    this.pos.x += this.dir.x;
+    this.pos.y += this.dir.y;
   }
   
   updateAngle(angleRad) {
-    if (angleRad == undefined) {
-      let rotation = random(-PI/4, PI/4);
-      this.dir.rotate(rotation);
-      this.angle = this.dir.heading();
-      return rotation
-    }
-    else {
-      this.angle = angleRad;
-      let newDir = p5.Vector.fromAngle(this.angle);
-      let rotation = this.dir.angleBetween(newDir);
-      this.dir = newDir;
-      console.log(rotation)
-      return rotation
-    }
+    let rotation = (angleRad == undefined) ? random(-PI/4, PI/4) : angleRad;
+    this.dir.rotate(rotation);
+    this.angle = this.dir.heading();
   }
 
   detect(walls, draw=false) {
@@ -91,7 +78,7 @@ class MovingObject {
     push();
     translate(this.pos.x, this.pos.y);
     line(0, 0, this.dir.x, this.dir.y);    
-    noStroke();
+    pop();
   }
 }
 
@@ -112,9 +99,9 @@ class Robot extends MovingObject {
 
 
 class Particle extends MovingObject {
-  constructor(prior, sightRange, nbrSensors) {
-    super(random(width), random(height), sightRange, nbrSensors, 0, 0, random(TWO_PI));
-    this.prior = prior;
+  constructor(x, y, angle, weight, sightRange, nbrSensors, sensorPrecision) {
+    super(x, y, angle, sightRange, nbrSensors, sensorPrecision, 0);
+    this.weight = weight;
   }
   
   show() {
@@ -122,9 +109,9 @@ class Particle extends MovingObject {
     noStroke();
     if (this.bestPrediction) {
       fill(113, 181, 29);
-      r = 3;
+      r = 5;
     } else {
-      fill(173);
+      fill(173, 173, 173, 33);
       r = 2;
     }
     ellipseMode(RADIUS);
@@ -133,25 +120,90 @@ class Particle extends MovingObject {
 }
 
 class Particles {
-  constructor(nbrParticles) {
+  constructor(nbrParticles, sightRange, nbrSensors, sensorPrecision) {
     this.particles = [];
     this.nbrParticles = nbrParticles;
     for (let i = 0; i < this.nbrParticles; i++) {
-      this.particles[i] = new Particle(1/this.nbrParticles);
+      this.particles[i] = new Particle(random(width), random(height), random(TWO_PI), 1/this.nbrParticles, sightRange, nbrSensors, sensorPrecision);
+    }
+    this.sightRange = sightRange;
+    this.nbrSensors = nbrSensors;
+    this.sensorPrecision = sensorPrecision;
+    this.bestParticle = this.particles[0];
+    this.weightsNormalized = []; // In the same order as this.particles
+  }
+  
+  move(angle, distance) {
+    for (let particle of this.particles) {
+      particle.move(angle, distance);
     }
   }
   
-  updatePriors() {
+  detect(walls) {
+    for (let particle of this.particles) {
+      particle.detect(walls, false)
+    }
+  }
+  
+  updateWeights(robotData) {
+    let weights = [];
+    let weightsSum = 0.0;
+    this.weightsNormalized = [];
+    for (let particle of this.particles) {
+      const w = getWeight(particle.sensorData, robotData, particle.sensorPrecision*20);
+      weights.push(w);
+      weightsSum += w;
+    }
+    for (let i = 0; i < this.nbrParticles; i++) {
+      let weightNorm = weights[i] / weightsSum;
+      this.particles[i].weight = weightNorm;
+      this.weightsNormalized.push(weightNorm);
+    }
+  }
+  
+  findBestParticle() {
     let bestParticle = this.particles[0]
     for (let particle of this.particles) {
       particle.bestPrediction = false;
-      const prior = 0
-      particle.updatePrior(prior);
-      if (prior > bestParticle.prior) {
+      if (particle.weight > bestParticle.weight) {
         bestParticle = particle
       }
     }
     bestParticle.bestPrediction = true;
+    this.bestParticle = bestParticle;
+  }
+  
+  resample(angleRadStd, positionStd, elist) {
+    let resampledParticles = [];
+    let cumulativeWeights = [];
+    let increment = 0.0;
+    for (let i = 0; i < this.nbrParticles; i++) {
+      increment += this.weightsNormalized[i];
+      cumulativeWeights.push(increment);
+    }
+    for (let i = 0; i < this.nbrParticles; i++) {
+      if (elist && i == 0) {
+        resampledParticles.push(this.bestParticle);
+      } else {
+        let r = random();
+        let j = 0;
+
+        while (cumulativeWeights[j] < r) {
+          j += 1;
+        }
+        let angle = this.particles[j].angle + randomGaussian(0, angleRadStd);
+        let x = this.particles[j].pos.x + int(randomGaussian(0, positionStd));
+        let y = this.particles[j].pos.y + int(randomGaussian(0, positionStd));
+        resampledParticles.push(new Particle(x, y, angle, 0.0, this.sightRange, this.nbrSensors, this.sensorPrecision, 0));
+      } 
+    }
+    /*// Removing all particles from previous generation
+    for (let particle of this.particles) {
+      particle.remove();
+    }*/
+    
+    // Copying all new particles
+    this.particles = resampledParticles;
   }
   
   show() {

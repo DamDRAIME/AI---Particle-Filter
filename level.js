@@ -163,7 +163,7 @@ class LevelGenerator {
   
   robotInitializationPosition() {
     if (this.levelId == 1) {
-      return {x:590, y:320, angle:PI}
+      return {x:width/2, y:height/2, angle:PI}
     } else if (this.levelId == 2) {
       return {x:300, y:175, angle:0}
     }
@@ -173,11 +173,11 @@ class LevelGenerator {
     let a;
     let d;
     if (this.levelId == 1) {
-      a = [];
-      d = [];
+      a = [0, 0, 0, 0, -1/4*PI, 0, 0, 1/8*PI, 0, 0, -1/4*PI, 0, 0, 0, 0, 0, 0, 0];
+      d = [5, 10, 7, 11, 8, 12, 2, 7, 5, 6, 1, 9, 11, 10, 9, 6, 8, 3];
     } else if (this.levelId == 2) {
-      a = [0, 0, 0, 0, 0, 0, -1/4*PI, -1/4*PI, -1/4*PI, -1/2*PI, -1/2*PI, -1/2*PI, -1/2*PI, -1/2*PI, -1/2*PI, -1/2*PI, -1/2*PI, -1/2*PI, -1/2*PI, -1/2*PI, -1/2*PI, -1/2*PI, -1/2*PI, -1/2*PI, -1/2*PI, -1/2*PI, 0];
-      d = [5, 10, 7, 11, 8, 12, 2, 9, 8, 5, 2, 14, 13, 4, 7, 12, 18, 9, 10, 2, 3, 4, 11, 12, 7, 15, 50];
+      a = [0, 0, 0, 0, 0, 0, -1/4*PI, 0, -1/4*PI, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1/2*PI, 0, 1/8*PI, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1/4*PI, 0];
+      d = [5, 10, 7, 11, 8, 12, 2, 9, 8, 5, 2, 14, 13, 4, 7, 12, 18, 9, 10, 2, 3, 4, 11, 12, 7, 15, 2, 3, 7, 4, 5, 1, 9, 6, 4, 3, 12, 3, 9, 10, 2, 1, 6, 12, 14 ];
     }
     for (var i = 0; i < a.length; i++) {
       yield {angle:a[i], distance:d[i]};
